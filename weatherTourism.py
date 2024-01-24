@@ -144,10 +144,10 @@ app.layout = html.Div([
     Output('my_fig', 'figure'),
     Output('sumarized', 'children'),
     Input('data_type_selector', 'value'),
-    Input('cumulsumarizedated', 'n_clicks'),
+    Input('sumarized', 'n_clicks'),
 
 )
-def update_output(data_type, n_clicks_cumulated):
+def update_output(data_type, n_clicks_sumarized):
     # Daten für den Graphen werden aus dem Dataframe gezogen
     traces = []
     for trace_name in year_dfs:
@@ -184,7 +184,7 @@ def update_output(data_type, n_clicks_cumulated):
         )
     
     # Wenn der Button geklickt wird, wird zwischen den Ansichten gewechselt
-    if n_clicks_cumulated % 2 == 1:
+    if n_clicks_sumarized % 2 == 1:
         cumulated_text = 'All Years'
         fig = go.Figure(data=traces, layout=layout)
     else:
