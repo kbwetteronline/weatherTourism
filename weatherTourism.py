@@ -21,7 +21,9 @@ today = datetime.today() - timedelta(days = 6.0)
 dateformat = '%Y-%m-%d'
 
 TODAY = today.strftime(dateformat)
-types = ["temperature_2m_max", "temperature_2m_min", "temperature_2m_mean", "precipitation_sum"]
+types = ["temperature_2m_max", "temperature_2m_mean", "temperature_2m_min", "precipitation_sum"]
+types_as_String = ["Maximum Temperature", "Mean Temperature", "Minimum Temperature", "Precipitation"]
+unit_of_type = ["°C", "°C", "°C", "mm"]
 
 url = "https://archive-api.open-meteo.com/v1/archive"
 params = {
@@ -50,6 +52,7 @@ for index, type in enumerate(types):
     daily_data[type] = daily.Variables(index).ValuesAsNumpy()
 
 df = pd.DataFrame(data = daily_data)
+df = df.round(2)
 print(df)
 
 jahres_dfs = {}
@@ -90,8 +93,8 @@ for type in types:
             else:
                 continue
 
-        # Um den Durchschnittswert zu erhalten wird durch die Anzahl der Jahre geteilt
-        value = value / len(jahres_dfs)
+        # Um den Durchschnittswert zu erhalten wird durch die Anzahl der Jahre geteilt und auf 2 Nachkommastellen gerundet
+        value = round(value / len(jahres_dfs), 2)
 
 
         # Tag für Tag werden die Daten angefügt
@@ -117,8 +120,8 @@ app.layout = html.Div([
             id='art',
             options=[
                 {'label': 'Maximum Temperature', 'value': 'temperature_2m_max'},
+                {'label': 'Mean Temperature', 'value': 'temperature_2m_mean'},
                 {'label': 'Minimum Temperature', 'value': 'temperature_2m_min'},
-                {'label': 'Durchschitts Temperature', 'value': 'temperature_2m_mean'},
                 {'label': 'Precipitation', 'value': 'precipitation_sum'},
             ],
             value="temperature_2m_mean",
@@ -133,17 +136,6 @@ app.layout = html.Div([
     dcc.Graph(id='my_fig', config={
         'displayModeBar': False}),
 
-
-    html.Div(children=[
-        dcc.RangeSlider(id='rangeslider',
-                        min=min(df['date']),
-                        max=max(df['date']),
-                        value=[min(df['date']), max(df['date'])],
-                        step=1,
-                        # display the date in the marks
-                        updatemode='drag')
-    ]),
-
 ])
 
 
@@ -151,61 +143,48 @@ app.layout = html.Div([
     Output('my_fig', 'figure'),
     Output('cumulated', 'children'),
     Input('art', 'value'),
-    Input('cumulated', 'n_clicks'),   
-    Input('rangeslider', 'value')
+    Input('cumulated', 'n_clicks'),
 
 )
-def update_output(art, n_clicks_cumulated, rangesl_value):
-    start_timestamp = rangesl_value[0]
-    end_timestamp = rangesl_value[1]
-
-    df_filtered = df
-
-    # df_filtered = df[(df['date'] >= start_timestamp) & (df['date'] <= end_timestamp)]
-
-    # df_filtered['date'] = pd.to_datetime(df_filtered['date'], unit='s')
-
-    # print('filtered')
-    # print(df_filtered)
-
-
-    """for column in df_filtered.loc[:, df_filtered.columns != 'date']:
-        df_filtered [column] = df_filtered[column] * (one_time / df.iloc[0][column])"""
+def update_output(art, n_clicks_cumulated):
 
     traces = []
     for trace_name in jahres_dfs:
+        print(trace_name)
         traces.append(go.Scatter(
-            x=df_filtered['date'],
+            x=jahres_dfs[trace_name]['date'],
             y=jahres_dfs[trace_name][art],
             mode='lines',
+            hovertemplate=('<b>Year: {} | '.format(trace_name) + types_as_String[types.index(art)] + ': %{y} ' + unit_of_type[types.index(art)] + '</b><extra></extra>'),
             name=trace_name
         ))
 
     durschnitts_traces = []
-    for trace_name in jahres_dfs:
-        durschnitts_traces.append(go.Scatter(
-        x=df_filtered['date'],
+    durschnitts_traces.append(go.Scatter(
+        x=durschnitts_df['date'],
         y=durschnitts_df[art],
         mode='lines',
-        name=trace_name
+        hovertemplate=('<b>Day: %{x} <br>' + types_as_String[types.index(art)] + ': %{y} ' + unit_of_type[types.index(art)] + '</b><extra></extra>'),
+        name="Summarized Average of all Years"
     ))
 
-    layout = go.Layout(xaxis=dict(title='Month'), yaxis=dict(title='Einheit'))
+    layout = go.Layout(xaxis=dict(title='Day of the Year'), yaxis=dict(title=types_as_String[types.index(art)] + ' in ' + unit_of_type[types.index(art)]))
     
     if n_clicks_cumulated % 2 == 1:
-        cumulated_text = 'All'
+        cumulated_text = 'All Years'
 
         fig = go.Figure(data=traces, layout=layout)
     else:
-        cumulated_text = 'Cumulated'
+        cumulated_text = 'Summarized'
         
         fig = go.Figure(data=durschnitts_traces, layout=layout)
+        
 
     fig.update_layout(showlegend=True,
                       legend=dict(groupclick="toggleitem", orientation="h"),
                       xaxis=dict(rangeslider=dict(visible=True)),
-                      height=700)
-    fig.update_xaxes(title="Month",rangeslider_thickness=0.1)
+                      height=700, hovermode='x unified')
+    fig.update_xaxes(rangeslider_thickness=0.1)
 
     return fig, cumulated_text
 
